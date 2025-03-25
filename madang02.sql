@@ -14,3 +14,4 @@ SELECT std_id, std_name, stg_mobile, std_regyear FROM students;
 
 INSERT INTO MADANG.STUDENTS(std_id, std_name, stg_mobile, std_regyear)
 VALUES(seq_student.nextval, :v_std_name, :v_stg_mobile, :v_std_regyear);
+
