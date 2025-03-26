@@ -1,6 +1,7 @@
 import cx_Oracle as oci
 from faker import Faker
 import random
+from datetime import datetime, timedelta
 
 fake = Faker('ko-KR')
 
@@ -16,6 +17,19 @@ def generate_date_of_birth():
     month = random.randint(1, 12)
     day = random.randint(1, 28)
     return f"{year}-{month:02d}-{day:02d}"
+
+def random_time():
+    """ P(출석), L(지각), A(결석)에 맞는 랜덤 출석 시간 생성 """
+    status = random.choice(['P', 'L', 'A'])
+
+    if status == 'P':
+        time = fake.date_time_between(start_date='-1d', end_date='now').replace(hour=random.randint(7, 8), minute=random.randint(0, 59))
+    elif status == 'L':
+        time = fake.date_time_between(start_date='-1d', end_date='now').replace(hour=random.randint(9, 12), minute=random.randint(0, 59))
+    else:
+        time = fake.date_time_between(start_date='-1d', end_date='now').replace(hour=random.randint(13, 23), minute=random.randint(0, 59))
+
+    return time, status
 
 class AddData:
     def addCdata(self):
@@ -156,11 +170,14 @@ class AddData:
             cursor.execute("SELECT T_NO, CLASS_NO FROM ATTENDANCE.TEACHER")
             teacher_dict = {row[1]: row[0] for row in cursor.fetchall()}
 
-            attendance_data = [(s_no, teacher_dict[class_no]) for s_no, class_no in student_list if class_no in teacher_dict]
+            # 출석 상태와 시간을 가져오는 부분 수정
+            attendance_data = [(s_no, random_time()[0], teacher_dict[class_no], random_time()[1]) 
+                            for s_no, class_no in student_list if class_no in teacher_dict]
 
+            # 상태까지 포함시켜서 데이터 삽입
             query = '''
-                INSERT INTO ATTENDANCE.ATD (ATD_NO, S_NO, ATD_DATE, ATD_TIME, T_NO) 
-                VALUES(ATTENDANCE.atd_no_seq.nextval, :1, SYSDATE, SYSTIMESTAMP, :2)
+                INSERT INTO ATTENDANCE.ATD (ATD_no, S_NO, ATD_DATE, ATD_TIME, T_NO, STATUS) 
+                VALUES(ATTENDANCE.atd_no_seq.nextval, :1, SYSDATE, :2, :3, :4)
             '''
 
             cursor.executemany(query, attendance_data)
@@ -178,6 +195,7 @@ class AddData:
             conn.close()
 
         return isSucceed
+
 
 if __name__ == "__main__":
     add_data = AddData()

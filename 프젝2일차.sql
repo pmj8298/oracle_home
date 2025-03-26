@@ -7,7 +7,7 @@ DROP TABLE student;
 DROP TABLE teacher;
 DROP TABLE class;
 
-DROP SEQUENCE atd_id_seq;
+DROP SEQUENCE atd_no_seq;
 DROP SEQUENCE student_s_no_seq;
 DROP SEQUENCE teacher_t_no_seq;
 DROP SEQUENCE class_class_no_seq;
@@ -41,7 +41,7 @@ CREATE TABLE  student (
 );
 
 CREATE TABLE atd (
-    atd_id   NUMBER    PRIMARY KEY,       				  -- 출결 ID (기본키)
+    atd_no   NUMBER    PRIMARY KEY,       				  -- 출결 ID (기본키)
     s_no 	 NUMBER    NOT NULL,            			  -- 학생 ID (외래키)
     atd_date DATE      DEFAULT SYSDATE,   				  -- 출석 날짜 (기본값: 오늘 날짜)
     atd_time TIMESTAMP DEFAULT SYSTIMESTAMP, 		      -- 출석 시간 (기본값: 현재 시간)
@@ -52,24 +52,41 @@ CREATE TABLE atd (
 );
 
 
+--CREATE OR REPLACE TRIGGER set_atd_status
+--BEFORE INSERT ON atd
+--FOR EACH ROW
+--BEGIN
+--    -- 출석 시간에 따라 출결 상태 자동 설정
+--    IF TO_CHAR(SYSTIMESTAMP, 'HH24:MI:SS') <= '08:59:59' THEN
+--        :NEW.status := 'P'; -- 출석
+--    ELSIF TO_CHAR(SYSTIMESTAMP, 'HH24:MI:SS') BETWEEN '09:00:00' AND '12:59:59' THEN
+--        :NEW.status := 'L'; -- 지각
+--    ELSE
+--        :NEW.status := 'A'; -- 결석
+--    END IF;
+--END;
 CREATE OR REPLACE TRIGGER set_atd_status
 BEFORE INSERT ON atd
 FOR EACH ROW
 BEGIN
-    -- 출석 시간에 따라 출결 상태 자동 설정
-    IF TO_CHAR(SYSTIMESTAMP, 'HH24:MI:SS') <= '08:59:59' THEN
-        :NEW.status := 'P'; -- 출석
-    ELSIF TO_CHAR(SYSTIMESTAMP, 'HH24:MI:SS') BETWEEN '09:00:00' AND '12:59:59' THEN
-        :NEW.status := 'L'; -- 지각
-    ELSE
-        :NEW.status := 'A'; -- 결석
+    -- 만약 이미 상태가 지정되어 있으면, 트리거에서 덮어쓰지 않음
+    IF :NEW.status IS NULL THEN
+        -- 출석 시간에 따라 출결 상태 자동 설정
+        IF TO_CHAR(SYSTIMESTAMP, 'HH24:MI:SS') <= '08:59:59' THEN
+            :NEW.status := 'P'; -- 출석
+        ELSIF TO_CHAR(SYSTIMESTAMP, 'HH24:MI:SS') BETWEEN '09:00:00' AND '12:59:59' THEN
+            :NEW.status := 'L'; -- 지각
+        ELSE
+            :NEW.status := 'A'; -- 결석
+        END IF;
     END IF;
 END;
 
 
+
 -- atd_id 시퀀스 생성
 -- DROP SEQUENCE atd_id_seq;
-CREATE SEQUENCE atd_id_seq
+CREATE SEQUENCE atd_no_seq
 START WITH 1
 INCREMENT BY 1;
 
