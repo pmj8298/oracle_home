@@ -16,7 +16,6 @@ port = 1521
 username = 'attendance'
 password = '12345'
 
-
 class AttendanceGraph(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -68,53 +67,52 @@ class AttendanceGraph(QWidget):
 
         self.canvas.draw()
 
-
 class CustomCalendar(QCalendarWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.symbols = {}  
+        self.symbols = {}
         self.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
         self.parent = parent
         self.load_attendance_data()
 
     def paintCell(self, painter, rect, date):
-        """출결 기호를 달력에 표시"""
         super().paintCell(painter, rect, date)
 
         if date in self.symbols:
-            symbol = self.symbols[date]
-            font = painter.font()
-            font.setPointSize(12)
+            symbol, time = self.symbols[date]
+            color_map = {'O': "blue", '△': "green", 'X': "red"}
+
+            painter.setPen(QColor(color_map.get(symbol, "black")))
+
+            font = QFont("Arial", 12, QFont.Bold)
             painter.setFont(font)
-            painter.drawText(rect, Qt.AlignCenter, symbol)
+            painter.drawText(rect.adjusted(rect.width() // 3, 0, 0, 0), Qt.AlignLeft, symbol)
+
+            if symbol != 'X':
+                painter.setFont(QFont("Arial", 6))
+                painter.drawText(rect.adjusted(0, rect.height() // 2, 0, 0), Qt.AlignCenter, time)
 
     def load_attendance_data(self):
-        """출결 데이터를 불러와서 달력과 그래프를 갱신"""
         try:
             conn = oci.connect(f'{username}/{password}@{host}:{port}/{sid}')
             cursor = conn.cursor()
             query = '''
-                SELECT ATD_DATE, STATUS 
-                FROM ATTENDANCE.ATD 
+                SELECT ATD_DATE, STATUS, TO_CHAR(ATD_TIME, 'HH24:MI')
+                FROM ATTENDANCE.ATD
                 WHERE S_NO = 1
             '''
             cursor.execute(query)
             rows = cursor.fetchall()
 
             status_map = {'P': 'O', 'L': '△', 'A': 'X'}
-            daily_counts = {}
             monthly_data = {}
             self.symbols.clear()
 
-            for date, status in rows:
+            for date, status, time in rows:
                 qdate = QDate(date.year, date.month, date.day)
                 month = date.month
 
-                if qdate not in daily_counts:
-                    daily_counts[qdate] = {'O': 0, '△': 0, 'X': 0}
-                daily_counts[qdate][status_map.get(status, "")] += 1
-
-                self.symbols[qdate] = status_map.get(status, "")
+                self.symbols[qdate] = (status_map.get(status, ""), time)
 
                 if month not in monthly_data:
                     monthly_data[month] = {'O': 0, '△': 0, 'X': 0}
@@ -122,8 +120,7 @@ class CustomCalendar(QCalendarWidget):
 
             print("출결 데이터 로드 완료:", self.symbols)
 
-            self.updateCells()  
-            self.parent.update_attendance_labels(daily_counts)
+            self.updateCells()
             self.parent.graph_widget.update_hbar_graph(monthly_data)
 
         except Exception as e:
@@ -132,7 +129,6 @@ class CustomCalendar(QCalendarWidget):
         finally:
             cursor.close()
             conn.close()
-
 
 class AttendanceApp(QMainWindow):
     def __init__(self):
@@ -146,9 +142,6 @@ class AttendanceApp(QMainWindow):
             vertical_layout.addWidget(self.graph_widget)
             vertical_layout.addStretch(1)
 
-        self.graph_widget.setMinimumHeight(50)
-        self.graph_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
         old_calendar = self.findChild(QCalendarWidget, "calendarWidget")
         if old_calendar:
             self.custom_calendar = CustomCalendar(self)
@@ -158,21 +151,6 @@ class AttendanceApp(QMainWindow):
             if layout:
                 layout.replaceWidget(old_calendar, self.custom_calendar)
             old_calendar.deleteLater()
-
-        text_browser = self.findChild(QTextBrowser, "textBrowser")
-        if text_browser:
-            container = QWidget(text_browser)
-            text_browser.setViewport(container)
-            container_layout = QVBoxLayout(container)
-            container_layout.addWidget(self.graph_widget)
-
-    def update_attendance_labels(self, daily_counts):
-        print(f"출결 카운트 업데이트: {daily_counts}")
-        if hasattr(self, 'graph_widget') and self.graph_widget:
-            self.graph_widget.update_hbar_graph(daily_counts)
-        else:
-            print("graph_widget이 초기화되지 않았습니다.")
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
